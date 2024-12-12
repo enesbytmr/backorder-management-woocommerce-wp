@@ -13,20 +13,14 @@ class BOM_WooCommerce_Integration {
         // Hook into order completion to update backorder sales count.
         add_action( 'woocommerce_order_status_completed', array( $this, 'update_backorder_sales_count' ) );
 
-        // Display backorder progress on single product pages.
-        add_action( 'woocommerce_single_product_summary', array( $this, 'display_backorder_progress' ), 25 );
-
-        // Add backorder data to variations for dynamic updates.
-        add_filter( 'woocommerce_available_variation', array( $this, 'add_backorder_data_to_variations' ), 10, 3 );
-
         // Add custom fields for variation backorder limits in the admin interface.
         add_action( 'woocommerce_product_after_variable_attributes', array( $this, 'add_variation_backorder_fields' ), 10, 3 );
 
         // Save custom fields for variation backorder limits.
         add_action( 'woocommerce_save_product_variation', array( $this, 'save_variation_backorder_fields' ), 10, 2 );
 
-        // Enforce backorder limits and notify admin.
-        add_action( 'woocommerce_product_bulk_edit_save', array( $this, 'enforce_backorder_limit' ) );
+        // Ensure Manage Stock reflects changes from the admin page.
+        add_action( 'woocommerce_update_product', array( $this, 'sync_manage_stock_with_variations' ) );
     }
 
     /**
@@ -51,20 +45,19 @@ class BOM_WooCommerce_Integration {
             $backorder_limit = (int) get_post_meta( $target_id, '_backorder_limit', true );
             $current_sold = (int) get_post_meta( $target_id, '_backorder_sold', true );
 
-            if ( 'yes' === $backorders_allowed ) {
+            if ( in_array( $backorders_allowed, array( 'yes', 'notify' ), true ) ) {
                 $new_sold = $current_sold + $quantity;
 
                 // Update sold count.
                 update_post_meta( $target_id, '_backorder_sold', $new_sold );
 
-                // Check if limit exceeded.
-                if ( $new_sold > $backorder_limit && $backorder_limit > 0 ) {
-                    update_post_meta( $target_id, '_backorders', 'no' ); // Disable backorders.
-                    $this->notify_admin_limit_exceeded( $target_id, $new_sold, $backorder_limit );
-                }
-
                 // Ensure stock status reflects backorder status.
                 update_post_meta( $target_id, '_stock_status', 'onbackorder' );
+
+                // Notify admin if backorder limit is exceeded.
+                if ( $new_sold > $backorder_limit && $backorder_limit > 0 ) {
+                    $this->notify_admin_limit_exceeded( $target_id, $new_sold, $backorder_limit );
+                }
             }
         }
     }
@@ -85,35 +78,12 @@ class BOM_WooCommerce_Integration {
     }
 
     /**
-     * Adds backorder data to variations for dynamic updates.
-     *
-     * @param array $variation_data The variation data array.
-     * @param WC_Product $product The parent product object.
-     * @param WC_Product_Variation $variation The variation object.
-     *
-     * @return array Modified variation data array.
-     */
-    public function add_backorder_data_to_variations( $variation_data, $product, $variation ) {
-        $variation_id = $variation->get_id();
-        $backorders = get_post_meta( $variation_id, '_backorders', true );
-        $limit = (int) get_post_meta( $variation_id, '_backorder_limit', true );
-        $sold = (int) get_post_meta( $variation_id, '_backorder_sold', true );
-
-        if ( 'yes' === $backorders && $limit > 0 ) {
-            $variation_data['backorder_progress'] = sprintf( __( '%d of %d sold on backorder', 'backorder-management' ), $sold, $limit );
-            $variation_data['stock_status'] = 'onbackorder';
-        } else {
-            $variation_data['backorder_progress'] = '';
-        }
-
-        return $variation_data;
-    }
-
-    /**
      * Add custom fields for variation backorder limits in the admin interface.
      */
     public function add_variation_backorder_fields( $loop, $variation_data, $variation ) {
+        $manage_stock = get_post_meta( $variation->ID, '_manage_stock', true );
         echo '<div class="form-row form-row-full">';
+
         // Backorder limit field.
         woocommerce_wp_text_input( array(
             'id'            => "_backorder_limit_{$variation->ID}",
@@ -123,7 +93,8 @@ class BOM_WooCommerce_Integration {
             'type'          => 'number',
             'desc_tip'      => true,
             'custom_attributes' => array(
-                'min' => '0',
+                'min'      => '0',
+                'readonly' => ( 'yes' !== $manage_stock ) ? 'readonly' : '',
             ),
         ) );
 
@@ -150,5 +121,23 @@ class BOM_WooCommerce_Integration {
         }
 
         // Current sold is not updated manually; no save action needed for it.
+    }
+
+    /**
+     * Sync Manage Stock settings between parent product and variations.
+     *
+     * @param int $product_id The parent product ID.
+     */
+    public function sync_manage_stock_with_variations( $product_id ) {
+        $product = wc_get_product( $product_id );
+
+        if ( $product->is_type( 'variable' ) ) {
+            $variations = $product->get_children();
+
+            foreach ( $variations as $variation_id ) {
+                $manage_stock = get_post_meta( $product_id, '_manage_stock', true );
+                update_post_meta( $variation_id, '_manage_stock', $manage_stock );
+            }
+        }
     }
 }

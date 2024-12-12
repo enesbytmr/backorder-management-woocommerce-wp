@@ -50,9 +50,8 @@ class BOM_Admin_Page {
                     update_post_meta( $product_id, '_backorders', $backorders_value );
 
                     // Enable Manage Stock and set Allow Backorders accordingly
-                    if ( 'yes' === $backorders_value || 'notify' === $backorders_value ) {
+                    if ( in_array( $backorders_value, array( 'yes', 'notify' ), true ) ) {
                         update_post_meta( $product_id, '_manage_stock', 'yes' );
-                        update_post_meta( $product_id, '_backorders', $backorders_value === 'notify' ? 'notify' : 'yes' );
                     } else {
                         update_post_meta( $product_id, '_manage_stock', 'no' );
                     }
@@ -97,7 +96,7 @@ class BOM_Admin_Page {
         ?>
         <div class="wrap">
             <h1 class="wp-heading-inline"> <?php esc_html_e( 'Backorder Management', 'backorder-management' ); ?> </h1>
-            <div style="position: relative; z-index: 100; margin-top: 20px;">
+            <div style="position: relative; z-index: 100;">
                 <form method="get" style="float: left; margin-top: -35px;">
                     <select name="category" class="bom-category-filter">
                         <option value="all">All Categories</option>
@@ -146,6 +145,7 @@ class BOM_Admin_Page {
                             $backorders = get_post_meta( $p->ID, '_backorders', true );
                             $limit      = get_post_meta( $p->ID, '_backorder_limit', true );
                             $sold       = get_post_meta( $p->ID, '_backorder_sold', true );
+                            $manage_stock = get_post_meta( $p->ID, '_manage_stock', true );
 
                             $backorders = $backorders ? $backorders : 'no';
                             $limit = $limit ? $limit : 0;
@@ -169,10 +169,14 @@ class BOM_Admin_Page {
                                         <option value="notify" <?php selected( 'notify', $backorders ); ?>><?php esc_html_e( 'Allow but Notify Customer', 'backorder-management' ); ?></option>
                                     </select>
                                 </td>
+                                <?php if ( 'yes' === $manage_stock ) : ?>
                                 <td>
                                     <input type="number" name="bom[<?php echo esc_attr( $p->ID ); ?>][limit]" value="<?php echo esc_attr( $limit ); ?>" min="0" />
                                 </td>
                                 <td><?php echo esc_html( $sold ); ?></td>
+                                <?php else : ?>
+                                <td colspan="2">Manage stock is disabled</td>
+                                <?php endif; ?>
                                 <td>
                                     <a href="<?php echo esc_url( $edit_url ); ?>" class="button">Edit</a>
                                 </td>
@@ -200,9 +204,11 @@ class BOM_Admin_Page {
         $current_sold    = (int) get_post_meta( $product_id, '_backorder_sold', true );
 
         // Only show a warning when the limit is exceeded
+        /*
         if ( $backorder_limit > 0 && ( $current_sold + $quantity ) > $backorder_limit ) {
             wc_add_notice( __( 'Warning: This quantity exceeds the backorder limit. You may experience delays.', 'backorder-management' ), 'notice' );
         }
+        */
 
         return $passed;
     }
@@ -211,6 +217,7 @@ class BOM_Admin_Page {
      * Validate backorder limits during checkout.
      */
     public function validate_backorder_limit_on_checkout() {
+        /*
         foreach ( WC()->cart->get_cart() as $cart_item ) {
             $product_id     = $cart_item['product_id'];
             $variation_id   = isset( $cart_item['variation_id'] ) ? $cart_item['variation_id'] : 0;
@@ -224,5 +231,6 @@ class BOM_Admin_Page {
                 wc_add_notice( __( 'Warning: Your cart contains items that exceed the backorder limit. Proceed with caution.', 'backorder-management' ), 'notice' );
             }
         }
+        */
     }
 }
