@@ -129,8 +129,13 @@ class BOM_Admin_Page {
                             $limit = $limit ? $limit : 0;
                             $sold = $sold ? $sold : 0;
 
-                            // Get the edit URL for variable or simple products.
-                            $edit_url = $type === 'variable' ? admin_url( 'post.php?post=' . $p->ID . '&action=edit' ) : admin_url( 'post.php?post=' . $p->ID . '&action=edit' );
+                            // Get the edit URL
+                            if ( $type === 'variation' ) {
+                                $parent_id = wp_get_post_parent_id( $p->ID );
+                                $edit_url = admin_url( 'post.php?post=' . $parent_id . '&action=edit' );
+                            } else {
+                                $edit_url = admin_url( 'post.php?post=' . $p->ID . '&action=edit' );
+                            }
                             ?>
                             <tr>
                                 <td><?php echo esc_html( $product_obj->get_name() ); ?></td>
