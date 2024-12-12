@@ -124,6 +124,9 @@ class BOM_Admin_Page {
                             $backorders = $backorders ? $backorders : 'no';
                             $limit = $limit ? $limit : 0;
                             $sold = $sold ? $sold : 0;
+
+                            // Get the edit URL for variable or simple products.
+                            $edit_url = $type === 'variable' ? admin_url( 'post.php?post=' . $p->ID . '&action=edit' ) : admin_url( 'post.php?post=' . $p->ID . '&action=edit' );
                             ?>
                             <tr>
                                 <td><?php echo esc_html( $product_obj->get_name() ); ?></td>
@@ -139,7 +142,7 @@ class BOM_Admin_Page {
                                 </td>
                                 <td><?php echo esc_html( $sold ); ?></td>
                                 <td>
-                                    <a href="<?php echo esc_url( admin_url( 'post.php?post=' . $p->ID . '&action=edit' ) ); ?>" class="button">Edit</a>
+                                    <a href="<?php echo esc_url( $edit_url ); ?>" class="button">Edit</a>
                                 </td>
                             </tr>
                             <?php
