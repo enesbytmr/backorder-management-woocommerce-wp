@@ -18,6 +18,12 @@ class BOM_WooCommerce_Integration {
 
         // Add backorder data to variations for dynamic updates.
         add_filter( 'woocommerce_available_variation', array( $this, 'add_backorder_data_to_variations' ), 10, 3 );
+
+        // Add custom fields for variation backorder limits in the admin interface.
+        add_action( 'woocommerce_product_after_variable_attributes', array( $this, 'add_variation_backorder_fields' ), 10, 3 );
+
+        // Save custom fields for variation backorder limits.
+        add_action( 'woocommerce_save_product_variation', array( $this, 'save_variation_backorder_fields' ), 10, 2 );
     }
 
     /**
@@ -113,5 +119,46 @@ class BOM_WooCommerce_Integration {
         }
 
         return $variation_data;
+    }
+
+    /**
+     * Add custom fields for variation backorder limits in the admin interface.
+     */
+    public function add_variation_backorder_fields( $loop, $variation_data, $variation ) {
+        // Backorder limit field.
+        woocommerce_wp_text_input( array(
+            'id'            => "_backorder_limit_{$variation->ID}",
+            'label'         => __( 'Backorder Limit', 'backorder-management' ),
+            'description'   => __( 'Set the backorder limit for this variation.', 'backorder-management' ),
+            'value'         => get_post_meta( $variation->ID, '_backorder_limit', true ),
+            'type'          => 'number',
+            'desc_tip'      => true,
+            'custom_attributes' => array(
+                'min' => '0',
+            ),
+        ) );
+
+        // Current sold field (read-only).
+        woocommerce_wp_text_input( array(
+            'id'            => "_backorder_sold_{$variation->ID}",
+            'label'         => __( 'Current Sold', 'backorder-management' ),
+            'description'   => __( 'Number of items sold on backorder.', 'backorder-management' ),
+            'value'         => get_post_meta( $variation->ID, '_backorder_sold', true ),
+            'type'          => 'number',
+            'custom_attributes' => array(
+                'readonly' => 'readonly',
+            ),
+        ) );
+    }
+
+    /**
+     * Save custom fields for variation backorder limits.
+     */
+    public function save_variation_backorder_fields( $variation_id, $i ) {
+        if ( isset( $_POST["_backorder_limit_{$variation_id}"] ) ) {
+            update_post_meta( $variation_id, '_backorder_limit', absint( $_POST["_backorder_limit_{$variation_id}"] ) );
+        }
+
+        // Current sold is not updated manually; no save action needed for it.
     }
 }

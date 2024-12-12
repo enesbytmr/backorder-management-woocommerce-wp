@@ -3,7 +3,7 @@
  * Plugin Name: Backorder Management
  * Plugin URI:  https://lumiasoft.com
  * Description: A minimal viable product to manage backorders for WooCommerce products and variations by LUMIASOFT.
- * Version:     0.0.2
+ * Version:     0.0.3
  * Author:      LUMIASOFT
  * Author URI:  https://lumiasoft.com
  * Text Domain: backorder-management
