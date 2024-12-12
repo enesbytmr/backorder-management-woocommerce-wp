@@ -73,7 +73,7 @@ class BOM_Admin_Page {
         ?>
         <div class="wrap">
             <h1 class="wp-heading-inline"> <?php esc_html_e( 'Backorder Management', 'backorder-management' ); ?> </h1>
-            <form method="get" style="float: right; margin-top: -35px;">
+            <form method="get" style="float: left; margin-top: -35px;">
                 <select name="category" class="bom-category-filter">
                     <option value="all">All Categories</option>
                     <?php
@@ -85,6 +85,10 @@ class BOM_Admin_Page {
                 </select>
                 <input type="text" name="s" placeholder="Search products" value="" />
                 <button type="submit" class="button">Filter</button>
+            </form>
+            <form method="post" style="float: right; margin-top: -35px;">
+                <?php wp_nonce_field( 'bom_nonce_action', 'bom_nonce_field' ); ?>
+                <button type="submit" class="button-primary" style="margin-left: 10px;">Save Changes</button>
             </form>
 
             <?php if ( isset( $_GET['updated'] ) ) : ?>
@@ -148,8 +152,6 @@ class BOM_Admin_Page {
                     ?>
                     </tbody>
                 </table>
-                <button type="submit" class="button-primary" style="float: right; margin-top: 10px;">Save Changes</button>
-                <input type="hidden" name="bom_action" value="save">
             </form>
         </div>
         <?php

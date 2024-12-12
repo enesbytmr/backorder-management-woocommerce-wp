@@ -24,6 +24,9 @@ class BOM_WooCommerce_Integration {
 
         // Save custom fields for variation backorder limits.
         add_action( 'woocommerce_save_product_variation', array( $this, 'save_variation_backorder_fields' ), 10, 2 );
+
+        // Enforce backorder limits and notify admin.
+        add_action( 'woocommerce_product_bulk_edit_save', array( $this, 'enforce_backorder_limit' ) );
     }
 
     /**
@@ -32,68 +35,53 @@ class BOM_WooCommerce_Integration {
      * @param int $order_id The ID of the completed order.
      */
     public function update_backorder_sales_count( $order_id ) {
-        // Retrieve the order object.
         $order = wc_get_order( $order_id );
         if ( ! $order ) {
             return;
         }
 
-        // Iterate through each item in the order.
         foreach ( $order->get_items() as $item ) {
             $product_id   = $item->get_product_id();
             $variation_id = $item->get_variation_id();
             $quantity     = $item->get_quantity();
 
-            // Determine the ID to update (variation ID if exists, otherwise product ID).
             $target_id = $variation_id ? $variation_id : $product_id;
 
-            // Check if backorders are enabled for this product or variation.
             $backorders_allowed = get_post_meta( $target_id, '_backorders', true );
+            $backorder_limit = (int) get_post_meta( $target_id, '_backorder_limit', true );
+            $current_sold = (int) get_post_meta( $target_id, '_backorder_sold', true );
+
             if ( 'yes' === $backorders_allowed ) {
-                // Retrieve the current sold count.
-                $current_sold = (int) get_post_meta( $target_id, '_backorder_sold', true );
+                $new_sold = $current_sold + $quantity;
 
-                // Update the sold count by adding the quantity from the order.
-                update_post_meta( $target_id, '_backorder_sold', $current_sold + $quantity );
+                // Update sold count.
+                update_post_meta( $target_id, '_backorder_sold', $new_sold );
 
-                // Ensure stock status is set to on backorder if applicable.
+                // Check if limit exceeded.
+                if ( $new_sold > $backorder_limit && $backorder_limit > 0 ) {
+                    update_post_meta( $target_id, '_backorders', 'no' ); // Disable backorders.
+                    $this->notify_admin_limit_exceeded( $target_id, $new_sold, $backorder_limit );
+                }
+
+                // Ensure stock status reflects backorder status.
                 update_post_meta( $target_id, '_stock_status', 'onbackorder' );
             }
         }
     }
 
     /**
-     * Displays the backorder progress on the single product page.
+     * Notify admin if the backorder limit is exceeded.
      */
-    public function display_backorder_progress() {
-        global $product;
-
-        if ( ! $product ) {
-            return;
-        }
-
-        // Determine the product or variation ID.
-        $product_id = $product->get_id();
-
-        // Check if backorders are enabled for this product or variation.
-        $backorders_allowed = get_post_meta( $product_id, '_backorders', true );
-        if ( 'yes' === $backorders_allowed ) {
-            // Retrieve the backorder limit and current sold count.
-            $backorder_limit = (int) get_post_meta( $product_id, '_backorder_limit', true );
-            $backorder_sold  = (int) get_post_meta( $product_id, '_backorder_sold', true );
-
-            // Display the backorder progress if a limit is set.
-            if ( $backorder_limit > 0 ) {
-                echo '<p class="backorder-progress">';
-                printf( esc_html__( '%d of %d items sold on backorder.', 'backorder-management' ), $backorder_sold, $backorder_limit );
-                echo '</p>';
-
-                // Display stock status for clarity.
-                echo '<p class="backorder-stock-status">';
-                esc_html_e( 'Stock Status: On Backorder', 'backorder-management' );
-                echo '</p>';
-            }
-        }
+    private function notify_admin_limit_exceeded( $product_id, $current_sold, $backorder_limit ) {
+        $product = wc_get_product( $product_id );
+        $subject = __( 'Backorder Limit Exceeded', 'backorder-management' );
+        $message = sprintf(
+            __( 'The backorder limit for %s has been exceeded. Current Sold: %d, Limit: %d.', 'backorder-management' ),
+            $product->get_name(),
+            $current_sold,
+            $backorder_limit
+        );
+        wp_mail( get_option( 'admin_email' ), $subject, $message );
     }
 
     /**
@@ -125,6 +113,7 @@ class BOM_WooCommerce_Integration {
      * Add custom fields for variation backorder limits in the admin interface.
      */
     public function add_variation_backorder_fields( $loop, $variation_data, $variation ) {
+        echo '<div class="form-row form-row-full">';
         // Backorder limit field.
         woocommerce_wp_text_input( array(
             'id'            => "_backorder_limit_{$variation->ID}",
@@ -149,6 +138,7 @@ class BOM_WooCommerce_Integration {
                 'readonly' => 'readonly',
             ),
         ) );
+        echo '</div>';
     }
 
     /**
