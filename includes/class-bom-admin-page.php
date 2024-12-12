@@ -12,6 +12,10 @@ class BOM_Admin_Page {
     public function __construct() {
         add_action( 'admin_menu', array( $this, 'register_menu_page' ) );
         add_action( 'admin_init', array( $this, 'handle_form_submission' ) );
+
+        // Add hooks for validating backorder limits
+        add_filter( 'woocommerce_add_to_cart_validation', array( $this, 'validate_backorder_limit_on_add_to_cart' ), 10, 3 );
+        add_action( 'woocommerce_checkout_process', array( $this, 'validate_backorder_limit_on_checkout' ) );
     }
 
     /**
@@ -158,5 +162,39 @@ class BOM_Admin_Page {
             </form>
         </div>
         <?php
+    }
+
+    /**
+     * Validate backorder limits when adding to cart.
+     */
+    public function validate_backorder_limit_on_add_to_cart( $passed, $product_id, $quantity ) {
+        $backorder_limit = (int) get_post_meta( $product_id, '_backorder_limit', true );
+        $current_sold    = (int) get_post_meta( $product_id, '_backorder_sold', true );
+
+        if ( $backorder_limit > 0 && ( $current_sold + $quantity ) > $backorder_limit ) {
+            wc_add_notice( __( 'You cannot add this quantity to your cart. The backorder limit for this product has been reached.', 'backorder-management' ), 'error' );
+            return false;
+        }
+
+        return $passed;
+    }
+
+    /**
+     * Validate backorder limits during checkout.
+     */
+    public function validate_backorder_limit_on_checkout() {
+        foreach ( WC()->cart->get_cart() as $cart_item ) {
+            $product_id     = $cart_item['product_id'];
+            $variation_id   = isset( $cart_item['variation_id'] ) ? $cart_item['variation_id'] : 0;
+            $target_id      = $variation_id ? $variation_id : $product_id;
+            $quantity       = $cart_item['quantity'];
+            $backorder_limit = (int) get_post_meta( $target_id, '_backorder_limit', true );
+            $current_sold   = (int) get_post_meta( $target_id, '_backorder_sold', true );
+
+            if ( $backorder_limit > 0 && ( $current_sold + $quantity ) > $backorder_limit ) {
+                wc_add_notice( __( 'One of the products in your cart exceeds the backorder limit. Please adjust the quantity.', 'backorder-management' ), 'error' );
+                break;
+            }
+        }
     }
 }
